@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0b141a" />
+<title>Wassel</title>
+<link rel="icon" href="icon.svg" />
+<link rel="manifest" href="manifest.webmanifest" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0b141a;--panel:#1f2c34;--panel2:#2a3942;
+    --text:#e9edef;--sub:#8696a0;--accent:#00a884;--danger:#f15c6d;
+  }
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;padding-top:calc(24px + env(safe-area-inset-top));
+    padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  }
+  .wrap{width:100%;max-width:380px;text-align:center;animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .logo{
+    width:88px;height:88px;border-radius:26px;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 20px;
+    box-shadow:0 10px 34px rgba(0,168,132,.34);
+  }
+  .logo svg{width:46px;height:46px}
+  h1{font-size:30px;letter-spacing:-.5px;margin-bottom:6px}
+  .tag{color:var(--sub);font-size:14px;margin-bottom:28px}
+  .spinner{
+    width:30px;height:30px;border-radius:50%;
+    border:3px solid rgba(134,150,160,.25);border-top-color:var(--accent);
+    animation:spin .7s linear infinite;margin:0 auto 14px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .status{color:var(--sub);font-size:13px;min-height:20px}
+  .card{
+    background:var(--panel);border:1px solid rgba(134,150,160,.16);
+    border-radius:16px;padding:20px;text-align:left;margin-top:8px;
+  }
+  .card h2{font-size:16px;margin-bottom:6px}
+  .card p{color:var(--sub);font-size:13px;line-height:1.55;margin-bottom:14px}
+  label{display:block;font-size:12px;color:var(--sub);margin-bottom:6px;font-weight:600}
+  input{
+    width:100%;background:var(--panel2);color:var(--text);border:1px solid transparent;
+    border-radius:11px;padding:12px 14px;font-size:15px;outline:none;margin-bottom:12px;
+  }
+  input:focus{border-color:var(--accent)}
+  button{
+    width:100%;background:var(--accent);color:#fff;font-weight:600;font-size:15px;
+    border:none;border-radius:999px;padding:13px;cursor:pointer;
+  }
+  button:active{transform:scale(.98)}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(134,150,160,.28);margin-top:9px}
+  .err{color:var(--danger);font-size:13px;margin-bottom:12px;display:none}
+  .hide{display:none}
+  .foot{margin-top:20px;color:#5f6f78;font-size:11px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    </svg>
+  </div>
+  <h1>Wassel</h1>
+  <div class="tag">End-to-end encrypted messaging</div>
+
+  <!-- connecting -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="status" id="status">Connecting to your server…</div>
+  </div>
+
+  <!-- setup / error -->
+  <div id="setup" class="card hide">
+    <h2>Connect to your server</h2>
+    <p>Enter the address where Wassel is hosted. It is saved on this device so you only do this once.</p>
+    <div class="err" id="err"></div>
+    <label for="url">Server URL</label>
+    <input id="url" type="url" inputmode="url" autocapitalize="none" autocorrect="off"
+           spellcheck="false" placeholder="https://your-server.example.com" />
+    <button id="connect">Connect</button>
+    <button id="retry" class="ghost">Retry last address</button>
+  </div>
+
+  <div class="foot">Secure messaging &middot; Wassel</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Baked-in default. Replaced at package time; also editable in-app.
+  var DEFAULT_SERVER = "__WASSEL_SERVER_URL__";
+  var KEY = "wassel_server_url";
+
+  var loading = document.getElementById("loading");
+  var setup   = document.getElementById("setup");
+  var statusEl= document.getElementById("status");
+  var errEl   = document.getElementById("err");
+  var input   = document.getElementById("url");
+
+  function clean(u) {
+    if (!u) return "";
+    u = String(u).trim().replace(/\/+$/, "");
+    if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+    return u;
+  }
+  function saved() {
+    try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; }
+  }
+  function save(u) {
+    try { localStorage.setItem(KEY, u); } catch (e) {}
+  }
+  function showSetup(msg, prefill) {
+    loading.classList.add("hide");
+    setup.classList.remove("hide");
+    if (msg) { errEl.textContent = msg; errEl.style.display = "block"; }
+    else { errEl.style.display = "none"; }
+    if (prefill && !input.value) input.value = prefill;
+  }
+  function showLoading(msg) {
+    setup.classList.add("hide");
+    loading.classList.remove("hide");
+    statusEl.textContent = msg || "Connecting…";
+  }
+
+  // Health probe with timeout — verifies the backend is actually reachable
+  function probe(base) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = setTimeout(function () {
+        if (!done) { done = true; resolve(false); }
+      }, 8000);
+
+      fetch(base + "/api/health", { method: "GET", cache: "no-store", mode: "cors" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (done) return;
+          done = true; clearTimeout(timer);
+          resolve(!!(j && j.ok));
+        })
+        .catch(function () {
+          if (done) return;
+          done = true; clearTimeout(timer);
+          resolve(false);
+        });
+    });
+  }
+
+  function launch(base) {
+    save(base);
+    showLoading("Opening Wassel…");
+    window.location.replace(base + "/app");
+  }
+
+  function attempt(base, fromUser) {
+    if (!base) { showSetup("", ""); return; }
+    showLoading("Connecting to your server…");
+
+    if (navigator.onLine === false) {
+      showSetup("You appear to be offline. Check your connection and try again.", base);
+      return;
+    }
+    probe(base).then(function (ok) {
+      if (ok) launch(base);
+      else showSetup(
+        fromUser
+          ? "Could not reach that server. Check the address and that it is online."
+          : "Your saved server is unreachable. Confirm the address below.",
+        base
+      );
+    });
+  }
+
+  document.getElementById("connect").addEventListener("click", function () {
+    var u = clean(input.value);
+    if (!u) { errEl.textContent = "Please enter a server URL."; errEl.style.display = "block"; return; }
+    attempt(u, true);
+  });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("connect").click();
+  });
+  document.getElementById("retry").addEventListener("click", function () {
+    attempt(clean(input.value) || saved() || clean(DEFAULT_SERVER), true);
+  });
+
+  // Boot: saved address wins, then the baked-in default.
+  var start = saved() || clean(DEFAULT_SERVER);
+  if (start && start.indexOf("__WASSEL") === -1) attempt(start, false);
+  else showSetup("", "");
+})();
+</script>
+</body>
+</html>

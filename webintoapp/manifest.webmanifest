@@ -1,0 +1,13 @@
+{
+  "name": "Wassel — Secure Messaging",
+  "short_name": "Wassel",
+  "description": "Private, end-to-end encrypted messaging with stories, voice notes, live location and calls.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b141a",
+  "theme_color": "#0b141a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
